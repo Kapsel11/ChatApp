@@ -76,7 +76,8 @@ int main(int argc, char *argv[])
     while(pokracovat)
     {
         int volba;
-        cout << "1: Login\n2: Register\n3: Poslanie spravy\n4: Pridanie kontaktu \n5: Odstranenie kontaktu\n6: Vytvorit skupinu\n7: Poslanie suboru\n8: Zrusenie konta\n9: Odhlasenie\n10: Ukoncenie\n";
+        cout << "1: Login\n2: Register\n3: Poslanie spravy\n4: Pridanie kontaktu \n5: Odstranenie kontaktu\n6: Potvrdenie ziadosti "
+                "\n7: Vytvorit skupinu\n8: Poslanie suboru\n9: Zrusenie konta\n10: Odhlasenie\n11: Zobrazit spravy\n12: Poslanie spravy skupine\n";
         cin >> buffer;
         write(sockfd,buffer,2);
         volba = atoi(buffer);
@@ -148,6 +149,62 @@ int main(int argc, char *argv[])
         }
         else if(volba == 3) // Poslanie spravy
         {
+            char spravne[2];
+            char buf[1024];
+            bzero(buf,1024);
+            read(sockfd,buf,1024);
+            string f = buf;
+            string fajnl;
+            char a;
+            int i = 0;
+            cout << "Kontakty:\n";
+            while (true)
+            {
+                a = f[i];
+                if (a == '\0')
+                {
+                    cout << fajnl << endl;
+                    break;
+                }
+
+                if (a == ',')
+                {
+                    cout << fajnl << endl;
+                    fajnl = "";
+                    i++;
+                    continue;
+                }
+
+                fajnl += a;
+                i++;
+            }
+            bzero(buffer, 256);
+            cout << "Komu chcete poslat spravu:";
+            cin >> buffer;
+            //fgets(buffer,256,stdin);
+           // std::getline(std::cin,f);
+            int n;
+            char zzzz;
+            zzzz = getchar();
+            sendUser(sockfd,n,buffer);
+            bzero(buffer,256);
+            cout << "Zadajte spravu:";
+           //fgets(buffer,256,stdin);
+            std::getline(std::cin,f);
+
+            strcpy(buffer,f.c_str());
+
+            sendUser(sockfd,n,buffer);
+
+            n = read(sockfd, spravne, 1);
+            if (strcmp(spravne,"1") == 0)
+            {
+                cout << "Sprava bola uspesne poslana\n";
+            }
+            else
+            {
+                cout << "Nastala chyba pri posielani spravy!\n";
+            }
 
         }
         else if(volba == 4) // Pridanie kontaktu
@@ -173,7 +230,7 @@ int main(int argc, char *argv[])
 
                 if((strcmp(spravne,"1") == 0))
                 {
-                    cout << "Kontakt bol uspesne pridany!\n";
+                    cout << "Kontakt bol uspesne pridany do nepotvrdenych kontaktov!\n";
                 }
                 else
                 {
@@ -187,10 +244,95 @@ int main(int argc, char *argv[])
         }
         else if(volba == 5)
         {
+            char spravne[2];
+            char buf[1024];
+            bzero(buf,1024);
+            read(sockfd,buf,1024);
+            string f = buf;
+            string fajnl;
+            char a;
+            int i = 0;
+            cout << "Kontakty:\n";
+            while (true)
+            {
+                a = f[i];
+                if (a == '\0')
+                {
+                    cout << fajnl << endl;
+                    break;
+                }
 
+                if (a == ',')
+                {
+                    cout << fajnl << endl;
+                    fajnl = "";
+                    i++;
+                    continue;
+                }
+
+                fajnl += a;
+                i++;
+            }
+            bzero(buffer, 256);
+            cout << "Zadajte ktory kontakt sa ma vymazat:";
+            cin >> buffer;
+            write(sockfd,buffer,255);
+            bzero(spravne,2);
+            read(sockfd,spravne,2);
+            if (strcmp(spravne,"1") == 0)
+            {
+                cout << "Kontakt bol uspesne vymazany!\n";
+            }
+            else
+                cout << "Nepodarilo sa vymazat kontakt!\n";
         }
         else if(volba == 6)
         {
+            char spravne[2];
+            char buf[1024];
+            bzero(buf,1024);
+            read(sockfd,buf,1024);
+            string f = buf;
+            string fajnl;
+            char a;
+            int i = 0;
+            cout << "Ludia ktory sa s vami chcu spojit:\n";
+            while (true)
+            {
+                a = f[i];
+                if (a == '\0')
+                {
+                    cout << fajnl << endl;
+                    break;
+                }
+
+                if (a == ',')
+                {
+                    cout << fajnl << endl;
+                    fajnl = "";
+                    i++;
+                    continue;
+                }
+
+                fajnl += a;
+                i++;
+            }
+            string pom;
+            bzero(buffer, 256);
+            cout << "Zadajte kto sa ma pridat do kontaktov:";
+            cin >> pom;
+            strcpy(buffer, pom.c_str());
+            write(sockfd,buffer,255);
+            bzero(spravne,2);
+            read(sockfd, spravne, 1);
+
+            if (strcmp(spravne,"1") == 0)
+            {
+                // Urobit nieco
+                cout << "Kontakt bol uspesne pridany!\n";
+            }
+            else
+                cout << "Nepodarilo sa pridat kontakt!\n";
 
         }
         else if(volba == 7)
@@ -198,6 +340,10 @@ int main(int argc, char *argv[])
 
         }
         else if(volba == 8)
+        {
+
+        }
+        else if(volba == 9)
         {
             char spravne[10];
             bzero(spravne,10);
@@ -215,11 +361,72 @@ int main(int argc, char *argv[])
                     break;
             }
         }
-        else if(volba == 9)
+        else if(volba == 10)
         {
             prihlaseny = false;
             cout << "Boli ste uspesne odhlaseny";
         }
+
+        else if(volba == 11)
+        {
+            char spravne[2];
+            char buf[1024];
+            bzero(buf,1024);
+            read(sockfd,buf,1023);
+            string f = buf;
+            string fajnl;
+            char a;
+            int i = 0;
+            cout << "Kontakty:\n";
+            while (true)
+            {
+                a = f[i];
+                if (a == '\0')
+                {
+                    cout << fajnl << endl;
+                    break;
+                }
+
+                if (a == ',')
+                {
+                    cout << fajnl << endl;
+                    fajnl = "";
+                    i++;
+                    continue;
+                }
+
+                fajnl += a;
+                i++;
+            }
+            bzero(buffer, 256);
+            cout << "Zadajte s ktorym kontaktom chcete vidiet chat:";
+            cin >> buffer;
+            write(sockfd,buffer,255);
+            bzero(spravne,2);
+            read(sockfd,spravne,1);
+            string jejeje;
+            if (strcmp(spravne,"1") == 0)
+            {
+                cout << "Kontakt sa nasiel, nacitavam spravy...\n";
+                while(true)
+                {
+                    bzero(buffer,256);
+                    read(sockfd,buffer,255);
+                    jejeje = buffer;
+                    if(jejeje == "end")
+                        break;
+                    cout << buffer;
+                }
+            }
+            else
+                cout << "Nepodarilo sa najst chat s danym kontaktom!\n";
+        }
+
+        else if(volba == 12)
+        {
+
+        }
+
         else
         {
             break;
