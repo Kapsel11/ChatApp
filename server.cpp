@@ -6,26 +6,26 @@
 #include <string.h>
 #include <unistd.h>
 #include <iostream>
-#include <vector>
 #include <fstream>
 #include <pthread.h>
+#include <signal.h>
 
 using namespace std;
 
+void pridaj_kontakt(int soket,char buffer[], string* login, string meno);
+
 typedef struct data {
     int connections_count;
-    vector<int> connections_fd;
 }D;
 
+pthread_mutex_t *mutex;
 
 bool check_login(int soket,char buffer[], string* login)
 {
-    cout << "Check login";
     string path = "/tmp/tmp.A711GNdBTGg/";
     int pocet_pok = 3;
     for(int i = 0; i < pocet_pok; i++)
     {
-        cout << "Check-login\n";
         bzero(buffer, 256);
         int f = read(soket,buffer,255);
         if (f < 0)
@@ -36,6 +36,7 @@ bool check_login(int soket,char buffer[], string* login)
         ifstream ifile;
         string b = buffer;
         b = b + ".txt";
+        pthread_mutex_lock(mutex);
         ifile.open(path + b);
         string pas;
         if(ifile)
@@ -50,6 +51,7 @@ bool check_login(int soket,char buffer[], string* login)
             {
                 write(soket, "1", 1);
                 *login = b;
+                pthread_mutex_unlock(mutex);
                 return true;
             }
             else
@@ -61,50 +63,100 @@ bool check_login(int soket,char buffer[], string* login)
         {
             write(soket, "0", 1);
         }
+        pthread_mutex_unlock(mutex);
     }
 
     return false;
 }
 
-void check_register(int soket,char buffer[])
+void check_register(int soket,char buffer[], string* login, int volba = 0)
 {
     string path = "/tmp/tmp.A711GNdBTGg/";
     int pocet_pok = 3;
-    for(int i = 0; i < pocet_pok; i++)
+    string logdan;
+    if(volba != 1)
     {
-        bzero(buffer, 256);
-        int f = read(soket,buffer,255);
-        if (f < 0)
+        for(int i = 0; i < pocet_pok; i++)
         {
-            printf("Cant read from socket");
-        }
-
-        // Mutex?
-
-        ifstream ifile;
-        string login = buffer;
-        ifile.open(login +".txt");
-        if(ifile) {
-            write(soket, "0", 1);
-            ifile.close();
-        }
-        else
-        {
-            write(soket, "1", 1);
-            bzero(buffer,256);
+            bzero(buffer, 256);
             int f = read(soket,buffer,255);
             if (f < 0)
             {
                 printf("Cant read from socket");
             }
-            ofstream fajl(path + login + ".txt");
-            fajl << buffer << endl;
-            fajl << "default," << endl;
-            fajl << "default," << endl;
-            fajl.close();
-            break;
+            ifstream ifile;
+            logdan = buffer;
+
+            pthread_mutex_lock(mutex);
+
+            ifile.open(logdan +".txt");
+            if(ifile) {
+                write(soket, "0", 1);
+                ifile.close();
+                pthread_mutex_unlock(mutex);
+            }
+            else
+            {
+                write(soket, "1", 1);
+                bzero(buffer,256);
+                int f = read(soket,buffer,255);
+                if (f < 0)
+                {
+                    printf("Cant read from socket");
+                }
+                ofstream fajl(path + logdan + ".txt");
+                fajl << buffer << endl;
+                fajl << "default," << endl;
+                fajl << "default," << endl;
+                fajl.close();
+                pthread_mutex_unlock(mutex);
+                break;
+            }
         }
     }
+    else
+    {
+        for(int i = 0; i < pocet_pok; i++)
+        {
+            bzero(buffer, 256);
+            int f = read(soket,buffer,255);
+            if (f < 0)
+            {
+                printf("Cant read from socket");
+            }
+            ifstream ifile;
+            logdan = buffer;
+            logdan = "0" + logdan;
+            pthread_mutex_lock(mutex);
+
+            ifile.open(logdan +".txt");
+            if(ifile) {
+                write(soket, "0", 1);
+                ifile.close();
+                pthread_mutex_unlock(mutex);
+            }
+            else
+            {
+                write(soket, "1", 1);
+                bzero(buffer,256);
+                int f = read(soket,buffer,255);
+                if (f < 0)
+                {
+                    printf("Cant read from socket");
+                }
+                ofstream fajl(path + logdan + ".txt");
+                fajl << buffer << endl;
+                fajl << "default," << endl;
+                fajl << "default," << endl;
+                fajl.close();
+                pthread_mutex_unlock(mutex);
+                break;
+            }
+        }
+        pridaj_kontakt(soket, buffer, login, logdan);
+    }
+
+
 }
 
 void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
@@ -115,6 +167,7 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
 
     ifstream ifile;
     string pom = meno;
+    pthread_mutex_lock(mutex);
     ifile.open(path + pom +".txt");
 
     if(ifile) { // Podarilo sa nam otvorit subor -> kontakt existuje
@@ -126,6 +179,7 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
         if (!filein || !fileout)
         {
            // remove(path + *login + "1" + ".txt");
+            pthread_mutex_unlock(mutex);
             write(soket, "0", 1);
             return;
         }
@@ -168,14 +222,8 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
         string h = path + *login + "1";
         strcpy(buf,h.c_str());
 
-        if(remove(buffer) != 0)
-        {
-            cout << "JEE";
-        }
-        else
-        {
-            cout << "NEE";
-        }
+        remove(buffer);
+
         int result= rename( buf , buffer );
 
         if ( result == 0 )
@@ -191,6 +239,7 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
                 if (!fileout)
                 {
                     // remove(path + *login + "1" + ".txt");
+                    pthread_mutex_unlock(mutex);
                     write(soket, "0", 1);
                     return;
                 }
@@ -228,14 +277,8 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
                 string h = path + pes + ".txt" + "1";
                 strcpy(buf,h.c_str());
 
-                if(remove(buffer) != 0)
-                {
-                    cout << "JEE";
-                }
-                else
-                {
-                    cout << "NEE";
-                }
+                remove(buffer);
+
                 int result= rename( buf , buffer );
 
                 if ( result == 0 )
@@ -246,9 +289,11 @@ void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
         }
         else
             write(soket, "0", 1);
+        pthread_mutex_unlock(mutex);
     }
     else
     {
+        pthread_mutex_unlock(mutex);
         write(soket, "0", 1);
     }
 
@@ -262,6 +307,7 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
 
     ifstream ifile;
     string pom = buffer;
+    pthread_mutex_lock(mutex);
     ifile.open(path + pom +".txt");
 
     if(ifile) { // Podarilo sa nam otvorit subor -> kontakt existuje
@@ -272,6 +318,7 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
         if (!fileout)
         {
             // remove(path + *login + "1" + ".txt");
+            pthread_mutex_unlock(mutex);
             write(soket, "0", 1);
             return;
         }
@@ -307,15 +354,11 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
         string h = path + pom + ".txt" + "1";
         strcpy(buf,h.c_str());
 
-        if(remove(buffer) != 0)
-        {
-            cout << "JEE";
-        }
-        else
-        {
-            cout << "NEE";
-        }
+        remove(buffer);
+
         int result= rename( buf , buffer );
+
+        pthread_mutex_unlock(mutex);
 
         if ( result == 0 )
             write(soket, "1", 1);
@@ -324,6 +367,7 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
     }
     else
     {
+        pthread_mutex_unlock(mutex);
         write(soket, "0", 1);
     }
 
@@ -334,12 +378,15 @@ void zobraz_kontakty(int soket, string* login)
 {
     string path = "/tmp/tmp.A711GNdBTGg/";
     char buffer[1024];
+    pthread_mutex_lock(mutex);
     ifstream filein(path + *login);
 
     string strTemp;
     string f;
     std::getline(filein, f);
     std::getline(filein, f);
+
+    pthread_mutex_unlock(mutex);
 
     size_t pos = f.find("default,");
     if (pos != std::string::npos)
@@ -366,6 +413,7 @@ void posli_spravu(int soket,char buffer[], string* login)
     string sprava = buffer;
 
     string f;
+    pthread_mutex_lock(mutex);
     ifstream filein(path + *login);
     std::getline(filein, f);
     std::getline(filein, f);
@@ -387,13 +435,17 @@ void posli_spravu(int soket,char buffer[], string* login)
 
         //sprava = "\n" + hiphap + ": " + sprava;
         sprava = meno + " " + hiphap + ": " + sprava + "\n";
+
         ofstream bread(path + *login, ios::app);
         bread << sprava;
         bread.close();
 
+        pthread_mutex_unlock(mutex);
+
         string f = path + meno + ".txt";
 
         ifstream ifile;
+
         ifile.open(f);
         if(ifile)
         {
@@ -407,9 +459,60 @@ void posli_spravu(int soket,char buffer[], string* login)
         {
             write(soket,"0",1);
         }
+        pthread_mutex_unlock(mutex);
     }
     else
     {
+        pthread_mutex_unlock(mutex);
+        write(soket,"0",1);
+    }
+}
+
+void posli_spravu_skupine(int soket,char buffer[], string* login)
+{
+    string path = "/tmp/tmp.A711GNdBTGg/";
+    bzero(buffer,256);
+    read(soket,buffer,255);
+    string meno = buffer;
+    meno = "0" + meno;
+
+    bzero(buffer,256);
+    read(soket,buffer,255);
+    string sprava = buffer;
+
+    string jee = *login;
+    size_t pee = jee.find(".txt");
+    jee.erase(pee, 4);
+
+    sprava = jee + ": " + sprava + "\n";
+
+    string f;
+    pthread_mutex_lock(mutex);
+    ifstream filein(path + *login);
+    std::getline(filein, f);
+    std::getline(filein, f);
+
+    filein.close();
+
+     pee = f.find(meno);
+    if(pee != string::npos)
+    {
+        ofstream subor_skupiny(path + meno + ".txt", ios::app);
+        if(subor_skupiny)
+        {
+            subor_skupiny << sprava;
+            pthread_mutex_unlock(mutex);
+            write(soket,"1",1);
+        }
+        else
+        {
+            pthread_mutex_unlock(mutex);
+            write(soket,"0",1);
+        }
+    }
+    else
+    {
+        pthread_mutex_unlock(mutex);
         write(soket,"0",1);
     }
 }
@@ -418,6 +521,7 @@ void potvrd_ziadosti(int soket, string* login)
 {
     string path = "/tmp/tmp.A711GNdBTGg/";
     char buffer[1024];
+    pthread_mutex_lock(mutex);
     ifstream filein(path + *login);
 
     string strTemp;
@@ -433,6 +537,7 @@ void potvrd_ziadosti(int soket, string* login)
     }
 
     filein.close();
+    pthread_mutex_unlock(mutex);
 
     bzero(buffer, 1024);
 
@@ -462,6 +567,8 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
     string meno_bez = buffer;
     meno_kont.append(",");
 
+    pthread_mutex_lock(mutex);
+
     ifstream filein(path + *login);
 
     string f;
@@ -475,11 +582,13 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
     {
         f.erase(pos, meno_kont.size());
 
+
         ifstream file_input(path + *login);
         ofstream fileout(path + *login + "1"); //Temporary file
         if (!filein || !fileout)
         {
             // remove(path + *login + "1" + ".txt");
+            pthread_mutex_unlock(mutex);
             write(soket, "0", 1);
             return;
         }
@@ -492,13 +601,13 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
                 strTemp = f;
             }
             strTemp += "\n";
-            cout << strTemp;
             fileout << strTemp;
             i++;
         }
 
         fileout.close();
         file_input.close();
+
 
         bzero(buffer,256);
 
@@ -513,6 +622,7 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
         remove(buffer);
 
         rename( buf , buffer );
+
 
         ifstream fyle(path + meno_bez + ".txt");
         if(fyle)
@@ -549,7 +659,7 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
                 fyle_out << strPemp;
                 i++;
             }
-
+            fyle_out.close();
             losos.close();
 
             bzero(buffer,256);
@@ -566,23 +676,30 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
 
             int result= rename( buf , buffer );
 
+            ofstream fajv(buffer,ios::app);
+            string sprava = "Pouzivatel " + jee + " si vas odstranil z kontaktov!\n";
+            if(fajv)
+                fajv << sprava;
+            fajv.close();
             if ( result == 0 )
                 write(soket, "1", 1);
             else
                 write(soket, "0", 1);
-
         }
         else
         {
+            pthread_mutex_unlock(mutex);
             write(soket, "0", 1);
             return;
         }
-
+        pthread_mutex_unlock(mutex);
     }
     else
     {
+        pthread_mutex_unlock(mutex);
         write(soket, "0", 1);
     }
+    pthread_mutex_unlock(mutex);
 }
 
 void zobraz_spravy(int soket,char buffer[], string* login)
@@ -599,6 +716,7 @@ void zobraz_spravy(int soket,char buffer[], string* login)
     jee.erase(pee, 4);
     //jee += ":";
 
+    pthread_mutex_lock(mutex);
 
     ifstream ifile(path + *login);
     if(ifile)
@@ -634,16 +752,124 @@ void zobraz_spravy(int soket,char buffer[], string* login)
             }
         }
         ifile.close();
+        pthread_mutex_unlock(mutex);
         bzero(buffer,256);
         write(soket,"end",3);
 
     }
     else
     {
+        pthread_mutex_unlock(mutex);
       write(soket,"0",1);
     }
 
 }
+
+void pridaj_do_skupiny(int soket,char buffer[], string* login)
+{
+    string path = "/tmp/tmp.A711GNdBTGg/";
+    bzero(buffer,256);
+    read(soket,buffer,255);
+    string meno_kontaktu = buffer;
+
+    bzero(buffer,256);
+    read(soket,buffer,255);
+    string meno_skupiny = buffer;
+    meno_skupiny = "0" + meno_skupiny;
+
+    pthread_mutex_lock(mutex);
+    ifstream subor_skupiny;
+    subor_skupiny.open(path + meno_skupiny + ".txt");
+    string f;
+    string login_bez = *login;
+    size_t pee = login_bez.find(".txt");
+    login_bez.erase(pee, 4);
+
+    if(subor_skupiny)
+    {
+        getline(subor_skupiny,f);
+        getline(subor_skupiny,f);
+
+        pee = f.find(login_bez);
+        if(pee != string::npos)
+        {
+            pthread_mutex_unlock(mutex);
+            string helping = meno_skupiny + ".txt";
+            pridaj_kontakt(soket,buffer,&helping,meno_kontaktu);
+        }
+        else
+        {
+            pthread_mutex_unlock(mutex);
+            write(soket,"0",1);
+        }
+    }
+    else
+    {
+        pthread_mutex_unlock(mutex);
+        write(soket,"0",1);
+    }
+
+}
+
+void zobraz_skupinove_spravy(int soket,char buffer[], string* login)
+{
+    string path = "/tmp/tmp.A711GNdBTGg/";
+    bzero(buffer,256);
+    read(soket,buffer,255); // Pride meno skupiny
+
+    string meno_kontaktu = buffer;
+    meno_kontaktu = "0" + meno_kontaktu;
+    //meno_kontaktu += ":";
+
+    string jee = *login;
+    size_t pee = jee.find(".txt");
+    jee.erase(pee, 4);
+    //jee += ":";
+
+    pthread_mutex_lock(mutex);
+
+    ifstream ifile(path + meno_kontaktu + ".txt");
+    if(ifile)
+    {
+        write(soket,"1",1);
+
+        string strPemp;
+
+        getline(ifile,strPemp);
+        getline(ifile,strPemp);
+
+        pee = strPemp.find(jee);
+
+        if(pee != string::npos)
+        {
+            getline(ifile,strPemp);
+
+            while (getline(ifile,strPemp))
+            {
+                strPemp += "\n";
+                bzero(buffer,256);
+                strcpy(buffer,strPemp.c_str());
+                write(soket,buffer,255);
+            }
+            ifile.close();
+            pthread_mutex_unlock(mutex);
+            bzero(buffer,256);
+            write(soket,"end",3);
+        }
+        else
+        {
+            pthread_mutex_unlock(mutex);
+            write(soket,"end",3);
+            return;
+        }
+    }
+    else
+    {
+        pthread_mutex_unlock(mutex);
+        write(soket,"0",1);
+    }
+}
+
 void* accept_connection(void *p) {
     string path = "/tmp/tmp.A711GNdBTGg/";
     bool uspesne_prih;
@@ -665,7 +891,7 @@ void* accept_connection(void *p) {
 
         else if(volba == 2)
         {
-            check_register(newsockfd,buffer);
+            check_register(newsockfd,buffer,&login);
         }
 
         else if(volba == 3)
@@ -678,7 +904,6 @@ void* accept_connection(void *p) {
             if(uspesne_prih)
             {
                 write(newsockfd, "1", 1);
-                //pridaj_kontakt(newsockfd,buffer, &login);
                 pridaj_do_nepotvrd(newsockfd,buffer, &login);
             }
             else
@@ -695,6 +920,7 @@ void* accept_connection(void *p) {
         }
         else if(volba == 7)
         {
+            check_register(newsockfd,buffer,&login,1);
 
         }
         else if(volba == 8)
@@ -711,7 +937,11 @@ void* accept_connection(void *p) {
                 strcpy(char_array, strom.c_str());
 
                 if( remove(char_array) != 0 )
+                {
                     write(newsockfd, "0", 1);
+                    // odstran z kontaktov
+                }
+
                 else
                 {
                     write(newsockfd, "1", 1);
@@ -732,8 +962,18 @@ void* accept_connection(void *p) {
         }
         else if(volba == 12)
         {
-
+            posli_spravu_skupine(newsockfd,buffer,&login);
         }
+        else if(volba == 13)
+        {
+            pridaj_do_skupiny(newsockfd,buffer,&login);
+        }
+        else if(volba == 14)
+        {
+            zobraz_kontakty(newsockfd,&login);
+            zobraz_skupinove_spravy(newsockfd,buffer,&login);
+        }
+
         else
         {
             break;
@@ -744,6 +984,10 @@ void* accept_connection(void *p) {
 
 int main(int argc, char *argv[])
 {
+    signal(SIGPIPE, SIG_IGN);
+    pthread_mutex_t moutex;
+    pthread_mutex_init(&moutex,NULL);
+    mutex = &moutex;
     int sockfd;
     socklen_t cli_len;
     struct sockaddr_in serv_addr, cli_addr;
@@ -784,9 +1028,7 @@ int main(int argc, char *argv[])
         newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &cli_len);
         pthread_t test;
         pthread_create(&test,NULL,&accept_connection,&newsockfd);
-        cout << "Padam";
     }
-    cout << "Letim";
-
+    return 0;
 }
 
