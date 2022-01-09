@@ -3,26 +3,87 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <pthread.h>
 #include <signal.h>
+#include <unistd.h>
+#include <cstring>
+#include <limits.h>
+#include "server.h"
 
 using namespace std;
 
-void pridaj_kontakt(int soket,char buffer[], string* login, string meno);
-
-typedef struct data {
-    int connections_count;
-}D;
-
 pthread_mutex_t *mutex;
+string path = "/tmp/tmp.A711GNdBTGg/";
+
+int main(int argc, char *argv[])
+{
+    int newsockfd;
+    char cwd[PATH_MAX];
+    if(getcwd(cwd, sizeof(cwd)))
+    {
+        path = cwd;
+        string cmake = "cmake-build-debug";
+
+        size_t pee = path.find(cmake);
+        if(pee != string::npos)
+        {
+            path.erase(pee, cmake.length());
+        }
+    }
+
+    signal(SIGPIPE, SIG_IGN);
+    pthread_mutex_t moutex;
+    pthread_mutex_init(&moutex,NULL);
+    mutex = &moutex;
+    int sockfd;
+    socklen_t cli_len;
+    struct sockaddr_in serv_addr, cli_addr;
+    int n;
+    char buffer[256];
+
+    if (argc < 2)
+    {
+        fprintf(stderr,"usage %s port\n", argv[0]);
+        return 1;
+    }
+
+    bzero((char*)&serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(atoi(argv[1]));
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+    {
+        perror("Error creating socket");
+        return 1;
+    }
+
+    if (bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        perror("Error binding socket address");
+        return 2;
+    }
+
+    listen(sockfd, 5);
+
+    cli_len = sizeof(cli_addr);
+
+    while(true)
+    {
+        newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &cli_len);
+        pthread_t test;
+        pthread_create(&test,NULL,&accept_connection,&newsockfd);
+    }
+    pthread_mutex_destroy(mutex);
+    close(sockfd);
+    return 0;
+}
 
 bool check_login(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     int pocet_pok = 3;
     for(int i = 0; i < pocet_pok; i++)
     {
@@ -31,7 +92,6 @@ bool check_login(int soket,char buffer[], string* login)
         if (f < 0)
         {
             printf("Cant read from socket");
-
         }
         ifstream ifile;
         string b = buffer;
@@ -46,7 +106,7 @@ bool check_login(int soket,char buffer[], string* login)
             f = read(soket,buffer,255);
             int pom = atoi(buffer);
             ifile >> pas;
-
+            ifile.close();
             if(pas == buffer)
             {
                 write(soket, "1", 1);
@@ -69,9 +129,8 @@ bool check_login(int soket,char buffer[], string* login)
     return false;
 }
 
-void check_register(int soket,char buffer[], string* login, int volba = 0)
+void check_register(int soket,char buffer[], string* login, int volba)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     int pocet_pok = 3;
     string logdan;
     if(volba != 1)
@@ -129,7 +188,7 @@ void check_register(int soket,char buffer[], string* login, int volba = 0)
             logdan = "0" + logdan;
             pthread_mutex_lock(mutex);
 
-            ifile.open(logdan +".txt");
+            ifile.open(path + logdan +".txt");
             if(ifile) {
                 write(soket, "0", 1);
                 ifile.close();
@@ -155,15 +214,10 @@ void check_register(int soket,char buffer[], string* login, int volba = 0)
         }
         pridaj_kontakt(soket, buffer, login, logdan);
     }
-
-
 }
 
 void pridaj_kontakt(int soket,char buffer[], string* login, string meno)
 {
-    //bzero(buffer, 256);
-    //read(soket,buffer,255);
-    string path = "/tmp/tmp.A711GNdBTGg/";
 
     ifstream ifile;
     string pom = meno;
@@ -303,7 +357,6 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
 {
     bzero(buffer, 256);
     read(soket,buffer,255);
-    string path = "/tmp/tmp.A711GNdBTGg/";
 
     ifstream ifile;
     string pom = buffer;
@@ -376,7 +429,6 @@ void pridaj_do_nepotvrd(int soket,char buffer[], string* login)
 
 void zobraz_kontakty(int soket, string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     char buffer[1024];
     pthread_mutex_lock(mutex);
     ifstream filein(path + *login);
@@ -385,7 +437,7 @@ void zobraz_kontakty(int soket, string* login)
     string f;
     std::getline(filein, f);
     std::getline(filein, f);
-
+    filein.close();
     pthread_mutex_unlock(mutex);
 
     size_t pos = f.find("default,");
@@ -403,7 +455,6 @@ void zobraz_kontakty(int soket, string* login)
 
 void posli_spravu(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255);
     string meno = buffer;
@@ -470,7 +521,6 @@ void posli_spravu(int soket,char buffer[], string* login)
 
 void posli_spravu_skupine(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255);
     string meno = buffer;
@@ -501,6 +551,7 @@ void posli_spravu_skupine(int soket,char buffer[], string* login)
         if(subor_skupiny)
         {
             subor_skupiny << sprava;
+            subor_skupiny.close();
             pthread_mutex_unlock(mutex);
             write(soket,"1",1);
         }
@@ -519,7 +570,6 @@ void posli_spravu_skupine(int soket,char buffer[], string* login)
 
 void potvrd_ziadosti(int soket, string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     char buffer[1024];
     pthread_mutex_lock(mutex);
     ifstream filein(path + *login);
@@ -537,6 +587,7 @@ void potvrd_ziadosti(int soket, string* login)
     }
 
     filein.close();
+
     pthread_mutex_unlock(mutex);
 
     bzero(buffer, 1024);
@@ -551,6 +602,19 @@ void potvrd_ziadosti(int soket, string* login)
     if(pee != string::npos)
     {
         pridaj_kontakt(soket,buffer,login,meno);
+
+        string jee = *login;
+        size_t pee = jee.find(".txt");
+        jee.erase(pee, 4);
+        jee.append(",");
+
+        ofstream fajv(path + meno + ".txt",ios::app);
+        string sprava = "Pouzivatel " + jee + " prijal vasu ziadost!\n";
+        if(fajv)
+        {
+            fajv << sprava;
+            fajv.close();
+        }
     }
     else
     {
@@ -560,7 +624,6 @@ void potvrd_ziadosti(int soket, string* login)
 
 void vymaz_kontakt(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255);
     string meno_kont = buffer;
@@ -679,8 +742,10 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
             ofstream fajv(buffer,ios::app);
             string sprava = "Pouzivatel " + jee + " si vas odstranil z kontaktov!\n";
             if(fajv)
+            {
                 fajv << sprava;
-            fajv.close();
+                fajv.close();
+            }
             if ( result == 0 )
                 write(soket, "1", 1);
             else
@@ -704,7 +769,6 @@ void vymaz_kontakt(int soket,char buffer[], string* login)
 
 void zobraz_spravy(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255); // Pride meno kontaktu
 
@@ -767,7 +831,6 @@ void zobraz_spravy(int soket,char buffer[], string* login)
 
 void pridaj_do_skupiny(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255);
     string meno_kontaktu = buffer;
@@ -789,7 +852,7 @@ void pridaj_do_skupiny(int soket,char buffer[], string* login)
     {
         getline(subor_skupiny,f);
         getline(subor_skupiny,f);
-
+        subor_skupiny.close();
         pee = f.find(login_bez);
         if(pee != string::npos)
         {
@@ -813,7 +876,6 @@ void pridaj_do_skupiny(int soket,char buffer[], string* login)
 
 void zobraz_skupinove_spravy(int soket,char buffer[], string* login)
 {
-    string path = "/tmp/tmp.A711GNdBTGg/";
     bzero(buffer,256);
     read(soket,buffer,255); // Pride meno skupiny
 
@@ -870,8 +932,54 @@ void zobraz_skupinove_spravy(int soket,char buffer[], string* login)
     }
 }
 
+void notifikacie(int soket,char buffer[], string* login)
+{
+
+    string jee = *login;
+    size_t pee = jee.find(".txt");
+    jee.erase(pee, 4);
+
+    pthread_mutex_lock(mutex);
+
+    ifstream ifile(path + *login);
+    if(ifile)
+    {
+
+        string strPemp;
+
+        getline(ifile,strPemp);
+        getline(ifile,strPemp);
+        getline(ifile,strPemp);
+
+        size_t p1;
+        size_t p2;
+
+        while (getline(ifile,strPemp))
+        {
+            p1 = strPemp.find("Pouzivatel ");
+            strPemp += "\n";
+
+            if((p1 != string::npos) && (p1 < 25 ))
+            {
+                bzero(buffer,256);
+                strcpy(buffer,strPemp.c_str());
+                write(soket,buffer,255);
+            }
+        }
+        ifile.close();
+        pthread_mutex_unlock(mutex);
+        bzero(buffer,256);
+        write(soket,"end",3);
+
+    }
+    else
+    {
+        pthread_mutex_unlock(mutex);
+    }
+}
+
 void* accept_connection(void *p) {
-    string path = "/tmp/tmp.A711GNdBTGg/";
+
     bool uspesne_prih;
     string login;
     cout << "accept-connection\n";
@@ -962,10 +1070,12 @@ void* accept_connection(void *p) {
         }
         else if(volba == 12)
         {
+            zobraz_kontakty(newsockfd,&login);
             posli_spravu_skupine(newsockfd,buffer,&login);
         }
         else if(volba == 13)
         {
+            zobraz_kontakty(newsockfd,&login);
             pridaj_do_skupiny(newsockfd,buffer,&login);
         }
         else if(volba == 14)
@@ -973,62 +1083,18 @@ void* accept_connection(void *p) {
             zobraz_kontakty(newsockfd,&login);
             zobraz_skupinove_spravy(newsockfd,buffer,&login);
         }
+        else if(volba == 15)
+        {
+            notifikacie(newsockfd,buffer,&login);;
+        }
 
         else
         {
             break;
         }
     }
-    cout << close(newsockfd);
+    close(newsockfd);
 }
 
-int main(int argc, char *argv[])
-{
-    signal(SIGPIPE, SIG_IGN);
-    pthread_mutex_t moutex;
-    pthread_mutex_init(&moutex,NULL);
-    mutex = &moutex;
-    int sockfd;
-    socklen_t cli_len;
-    struct sockaddr_in serv_addr, cli_addr;
-    int n;
-    char buffer[256];
 
-    if (argc < 2)
-    {
-        fprintf(stderr,"usage %s port\n", argv[0]);
-        return 1;
-    }
-
-    bzero((char*)&serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(atoi(argv[1]));
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
-    {
-        perror("Error creating socket");
-        return 1;
-    }
-
-    if (bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        perror("Error binding socket address");
-        return 2;
-    }
-
-    listen(sockfd, 5);
-
-    cli_len = sizeof(cli_addr);
-    int newsockfd;
-
-    while(true)
-    {
-        newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &cli_len);
-        pthread_t test;
-        pthread_create(&test,NULL,&accept_connection,&newsockfd);
-    }
-    return 0;
-}
 
