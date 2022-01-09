@@ -1,3 +1,0 @@
-/tmp/tmp.A711GNdBTGg/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/tmp/tmp.A711GNdBTGg/cmake-build-debug/CMakeFiles/edit_cache.dir
-/tmp/tmp.A711GNdBTGg/cmake-build-debug/CMakeFiles/untitled3.dir
